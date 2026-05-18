@@ -8,7 +8,7 @@ from uuid import uuid4
 import random
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 
@@ -280,23 +280,7 @@ def build_dashboard() -> str:
 
       async function downloadMatrix() {
         try {
-          const r = await fetch('/admin/matrix');
-          const data = await r.json();
-          const lines = [];
-          lines.push(`Matrix (${data.size}x${data.size}):`);
-          data.matrix.forEach((row, i) => {
-            lines.push(row.map(v => v.toFixed(6)).join('\t'));
-          });
-          lines.push('\nVector (x):');
-          lines.push(data.vector.map(v => v.toFixed(6)).join('\t'));
-          const text = lines.join('\n');
-          const blob = new Blob([text], {type: 'text/plain'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `matrix_${data.size}x${data.size}.txt`;
-          a.click();
-          URL.revokeObjectURL(url);
+          window.location.href = '/admin/download_matrix';
         } catch (e) {
           console.error(e);
           alert('Error downloading matrix: ' + e.message);
@@ -305,25 +289,7 @@ def build_dashboard() -> str:
 
       async function downloadResults() {
         try {
-          const r = await fetch('/admin/status');
-          const data = await r.json();
-          const results = data.tasks.filter(t => t.result && t.status === 'done');
-          const lines = ['Results (b vector):'];
-          if (results.length === 0) {
-            lines.push('No completed tasks yet');
-          } else {
-            results.forEach(t => {
-              lines.push(`Task #${t.id}: ${t.result.map(v => v.toFixed(6)).join('\t')}`);
-            });
-          }
-          const text = lines.join('\n');
-          const blob = new Blob([text], {type: 'text/plain'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'results.txt';
-          a.click();
-          URL.revokeObjectURL(url);
+          window.location.href = '/admin/download_results';
         } catch (e) {
           console.error(e);
           alert('Error downloading results: ' + e.message);
@@ -332,12 +298,12 @@ def build_dashboard() -> str:
 
       async function loadMatrixData() {
         try {
-          const r = await fetch('/admin/matrix');
+          const r = await fetch('/admin/matrix_preview');
           const data = await r.json();
           const grid = document.getElementById('matrixContent');
-          const rows = data.matrix.slice(0, Math.min(10, data.matrix.length));
+          const rows = data.matrix_preview || [];
           grid.innerHTML = rows.map((row, i) => `<div><strong>Row ${i}:</strong> ${row.slice(0, 5).map(v => v.toFixed(3)).join(', ')} ${row.length > 5 ? '...' : ''}</div>`).join('');
-          if (data.matrix.length > 10) grid.innerHTML += `<div style="color:#999;">... and ${data.matrix.length - 10} more rows</div>`;
+          if ((data.size || 0) > rows.length) grid.innerHTML += `<div style="color:#999;">... and ${(data.size || 0) - rows.length} more rows</div>`;
         } catch (e) {
           console.error(e);
           document.getElementById('matrixContent').innerHTML = 'Error loading matrix';
@@ -560,6 +526,52 @@ def get_matrix() -> dict[str, Any]:
   """Retrieve the current matrix and vector."""
   with lock:
     return {"matrix": MATRIX, "vector": VECTOR_X, "size": MATRIX_SIZE}
+
+
+@app.get("/admin/matrix_preview")
+def get_matrix_preview() -> dict[str, Any]:
+  """Retrieve a small preview of the current matrix for the dashboard."""
+  with lock:
+    preview_rows = MATRIX[: min(10, len(MATRIX))]
+    return {"matrix_preview": preview_rows, "size": MATRIX_SIZE}
+
+
+@app.get("/admin/download_matrix")
+def download_matrix() -> PlainTextResponse:
+  """Download the full matrix and vector as text."""
+  with lock:
+    lines: list[str] = [f"Matrix ({MATRIX_SIZE}x{MATRIX_SIZE}):"]
+    for row in MATRIX:
+      lines.append("\t".join(f"{value:.6f}" for value in row))
+    lines.append("")
+    lines.append("Vector (x):")
+    lines.append("\t".join(f"{value:.6f}" for value in VECTOR_X))
+    content = "\n".join(lines)
+  return PlainTextResponse(
+    content,
+    media_type="text/plain",
+    headers={"Content-Disposition": f'attachment; filename="matrix_{MATRIX_SIZE}x{MATRIX_SIZE}.txt"'},
+  )
+
+
+@app.get("/admin/download_results")
+def download_results() -> PlainTextResponse:
+  """Download completed task results as text."""
+  with lock:
+    lines: list[str] = ["Results (b vector):"]
+    completed = [task for task in TASKS if task["status"] == "done" and isinstance(task.get("result"), list)]
+    if not completed:
+      lines.append("No completed tasks yet")
+    else:
+      for task in completed:
+        result = task.get("result", [])
+        lines.append(f"Task #{task['id']}: " + "\t".join(f"{value:.6f}" for value in result))
+    content = "\n".join(lines)
+  return PlainTextResponse(
+    content,
+    media_type="text/plain",
+    headers={"Content-Disposition": 'attachment; filename="results.txt"'},
+  )
 
 
 if __name__ == "__main__":
