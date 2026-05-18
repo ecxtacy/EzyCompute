@@ -100,16 +100,46 @@ The first working slice of the app is now started with:
 - [main.py](main.py) for the FastAPI server and dashboard
 - [worker.py](worker.py) for a basic polling worker
 - [client.py](client.py) as a simple alias for the worker
+- [launch_workers.py](launch_workers.py) for launching N workers (testing)
 - [requirements.txt](requirements.txt) for dependencies
 
 ### Run it
 
-1. Install dependencies.
-2. Start the server with `python main.py`.
-3. Open `http://127.0.0.1:8000/`.
-4. Start one or more workers with `python worker.py`.
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the server: `python main.py`
+3. Open `http://127.0.0.1:8000/` in your browser
+4. Launch workers:
+   - Single worker: `python worker.py`
+   - Multiple workers (testing): `python launch_workers.py 5` (launches 5 workers)
+   - Multiple workers with verbose output: `python launch_workers.py 10 --verbose`
+   - Multiple workers with custom delay: `python launch_workers.py 8 --delay 0.5`
 
 This is intentionally minimal and only covers registration, simple task polling, result submission, and a small live dashboard.
+
+### CLI Worker Launcher
+
+For testing and load simulation, use the `launch_workers.py` CLI script:
+
+```bash
+# Launch 5 workers
+python launch_workers.py 5
+
+# Launch 10 workers with verbose startup messages
+python launch_workers.py 10 --verbose
+
+# Launch 3 workers with 1 second delay between launches
+python launch_workers.py 3 --delay 1.0
+
+# Show help and usage examples
+python launch_workers.py --help
+```
+
+Features:
+- Spawns N independent worker processes
+- Graceful startup with configurable inter-worker delay
+- Real-time PID display for monitoring
+- Automatic cleanup on Ctrl+C (sends SIGTERM, then SIGKILL if needed)
+- Verbose mode to track startup of each worker
 
 ## 6. Advanced Features
 
