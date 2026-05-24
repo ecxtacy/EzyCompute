@@ -1,0 +1,106 @@
+.matrix-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  gap: 12px;
+}
+
+.input-group input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-group input:disabled {
+  background: var(--light-bg);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.info-message {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 4px solid var(--success-color);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.button-group .btn {
+  flex: 1;
+}
+
+.matrix-viewer {
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matrix-grid {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--light-bg);
+}
+
+.matrix-row {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--gray-700);
+  border-bottom: 1px solid var(--gray-300);
+}
+
+.matrix-row:last-child {
+  border-bottom: none;
+}
+
+.matrix-row code {
+  background: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  display: inline-block;
+  margin-top: 4px;
+  overflow-x: auto;
+}
+
+.matrix-more {
+  padding: 12px 8px;
+  color: var(--gray-500);
+  font-style: italic;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .input-group {
+    flex-direction: column;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group .btn {
+    width: 100%;
+  }
+}

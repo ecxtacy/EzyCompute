@@ -1,0 +1,39 @@
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-800);
+  padding: 24px 24px 16px;
+  border-bottom: 2px solid var(--light-bg);
+  margin: 0;
+}
+
+.card-content {
+  padding: 24px;
+}
+
+@media (max-width: 768px) {
+  .card {
+    border-radius: 8px;
+  }
+
+  .card-title {
+    font-size: 16px;
+    padding: 16px 16px 12px;
+  }
+
+  .card-content {
+    padding: 16px;
+  }
+}

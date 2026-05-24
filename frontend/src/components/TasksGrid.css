@@ -1,0 +1,120 @@
+.tasks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.task-card {
+  border: 2px solid var(--gray-300);
+  border-radius: 10px;
+  padding: 16px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.task-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.task-pending {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.task-working {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  border-left: 4px solid var(--warning-color);
+  animation: pulse-card 2s infinite;
+}
+
+.task-done {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  border-left: 4px solid var(--success-color);
+}
+
+@keyframes pulse-card {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.task-id {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.task-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-field.requeued {
+  background: #fee2e2;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.task-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.task-value {
+  font-size: 12px;
+  color: var(--gray-700);
+  word-break: break-word;
+  font-family: 'Courier New', monospace;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--gray-500);
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .tasks-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .task-card {
+    padding: 12px;
+  }
+}
