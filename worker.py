@@ -5,29 +5,22 @@ import importlib
 import time
 
 import requests
+import random
 
-try:
-    torch = importlib.import_module("torch")
-except Exception:  # pragma: no cover - optional dependency
-    torch = None
+def monte_carlo_simulation(samples: int) -> dict[str, int]:
+    inside = 0
 
+    for _ in range(samples):
+        x = random.random()
+        y = random.random()
 
-def dot_product_cpu(row: list[float], vector: list[float]) -> float:
-    return sum(a * b for a, b in zip(row, vector))
+        if x * x + y * y <= 1:
+            inside += 1
 
-
-def compute_results(matrix_chunk: list[list[float]], vector_x: list[float]) -> list[float]:
-    if torch is not None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        matrix = torch.tensor(matrix_chunk, dtype=torch.float32, device=device)
-        vector = torch.tensor(vector_x, dtype=torch.float32, device=device)
-        results = (matrix @ vector).detach().cpu().tolist()
-        device_label = "GPU" if device.type == "cuda" else "CPU"
-        print(f"Computed shard on {device_label}")
-        return [float(value) for value in results]
-
-    print("PyTorch not installed; falling back to CPU")
-    return [float(dot_product_cpu(row, vector_x)) for row in matrix_chunk]
+    return {
+        "inside": inside,
+        "samples": samples,
+    }
 
 
 def main() -> None:
@@ -55,14 +48,13 @@ def main() -> None:
             time.sleep(2)
             continue
 
-        matrix_chunk = data.get("matrix_chunk")
-        vector_x = data.get("vector_x")
-        if matrix_chunk is None or vector_x is None:
-            # unexpected payload, skip briefly
+        samples = data.get("samples")
+
+        if samples is None:
             time.sleep(2)
             continue
 
-        print(f"Working on task {task_id} (rows {len(matrix_chunk)})")
+        print(f"Working on task {task_id} ({samples} samples)")
 
         heartbeat_response = requests.post(
             f"{args.server}/task_heartbeat",
@@ -79,7 +71,7 @@ def main() -> None:
         # visual delay before heavy work so UI shows 'working'
         time.sleep(2)
 
-        results = compute_results(matrix_chunk, vector_x)
+        results = monte_carlo_simulation(samples)
 
         submit_response = requests.post(
             f"{args.server}/submit_result",

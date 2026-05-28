@@ -18,41 +18,38 @@ lock = Lock()
 TASK_LEASE_SECONDS = 8
 CLIENT_TIMEOUT_SECONDS = 12
 
-MATRIX_SIZE = 100
-MATRIX: list[list[float]] = []
-VECTOR_X: list[float] = []
 TASKS: list[dict[str, Any]] = []
 CLIENTS: dict[str, dict[str, Any]] = {}
+TOTAL_POINTS = 0
+POINTS_INSIDE = 0
+PI_ESTIMATE = 0.0
 
 
-def generate_matrix_and_tasks(size: int) -> None:
-  global MATRIX, VECTOR_X, TASKS, MATRIX_SIZE
-  MATRIX_SIZE = size
-  random.seed(42)
-  MATRIX = [[random.random() for _ in range(size)] for _ in range(size)]
-  VECTOR_X = [random.random() for _ in range(size)]
-  TASKS = []
-  num_tasks = min(10, max(1, size // 10))
-  rows_per_task = size // num_tasks
-  for i in range(num_tasks):
-    start = i * rows_per_task
-    end = start + rows_per_task if i < num_tasks - 1 else size
-    TASKS.append({
-      "id": i + 1,
-      "start_row": start,
-      "end_row": end,
-      "status": "pending",
-      "assigned_to": None,
-      "started_at": None,
-      "lease_expires_at": None,
-      "last_heartbeat": None,
-      "worker_message": None,
-      "requeued": False,
-      "result": None,
-    })
+def generate_simulation_tasks() -> None:
+    global TASKS
 
+    TASKS = []
 
-generate_matrix_and_tasks(100)
+    NUM_TASKS = 20
+    SAMPLES_PER_TASK = 100000
+
+    for i in range(NUM_TASKS):
+        TASKS.append({
+            "id": i + 1,
+            "samples": SAMPLES_PER_TASK,
+
+            "status": "pending",
+            "assigned_to": None,
+            "started_at": None,
+            "lease_expires_at": None,
+            "last_heartbeat": None,
+            "worker_message": None,
+            "requeued": False,
+
+            "result": None,
+        })
+
+generate_simulation_tasks()
 
 
 def now() -> str:
@@ -116,7 +113,7 @@ class RegisterRequest(BaseModel):
 class SubmitResultRequest(BaseModel):
   task_id: int
   client_id: str
-  result: list[float]
+  result: dict[str, int]
 
 
 class TaskHeartbeatRequest(BaseModel):
@@ -127,7 +124,6 @@ class TaskHeartbeatRequest(BaseModel):
 
 class SetMatrixSizeRequest(BaseModel):
   size: int
-
 
 def build_dashboard() -> str:
     return """
@@ -168,28 +164,15 @@ def build_dashboard() -> str:
     </header>
     <main>
       <section class="card">
-        <h2>Matrix Configuration</h2>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-          <input type="number" id="matrixSize" value="100" min="10" max="1000" style="width:100px;padding:6px;border:1px solid #d1d5db;border-radius:6px;">
-          <button id="setSizeBtn" style="padding:6px 12px;border-radius:6px;border:0;background:#3b82f6;color:white;cursor:pointer;">Set Matrix Size</button>
-          <span id="sizeStatus" style="color:#6b7280;font-size:13px;"></span>
+        <h2>Distributed Monte Carlo π Estimation</h2>
+
+        <div style="font-size:32px;font-weight:bold;margin-top:12px;">
+          π ≈ <span id="pi-value">0</span>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button id="toggleMatrixBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer;">View Matrix (A)</button>
-          <button id="downloadMatrixBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer;">Download Matrix</button>
-        </div>
-        <div id="matrixViewer" class="expandable collapsed" style="margin-top:12px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;max-height:400px;overflow:auto;">
-          <div id="matrixContent" class="matrix-grid"></div>
-        </div>
-      </section>
-      <section class="card">
-        <h2>Results</h2>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button id="toggleResultsBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer;">View Results (b)</button>
-          <button id="downloadResultsBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer;">Download Results</button>
-        </div>
-        <div id="resultsViewer" class="expandable collapsed" style="margin-top:12px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;max-height:300px;overflow:auto;">
-          <div id="resultsContent" class="results-grid"></div>
+
+        <div class="meta" style="margin-top:10px;">
+          Total Samples Processed:
+          <span id="sample-count">0</span>
         </div>
       </section>
       <section class="card">
@@ -212,14 +195,21 @@ def build_dashboard() -> str:
     </main>
     <script>
       function formatResult(result) {
-        if (!Array.isArray(result)) return '-';
-        const preview = result.slice(0, 3).map(n => Number(n).toFixed(4)).join(', ');
-        return result.length > 3 ? `[${preview}, ...] (${result.length} values)` : `[${preview}]`;
+        if (!result) return '-';
+
+        return `
+          inside=${result.inside},
+          samples=${result.samples}
+        `;
       }
 
       async function refresh() {
         const response = await fetch('/admin/status');
         const data = await response.json();
+
+        document.getElementById('pi-value').innerText = Number(data.pi_estimate || 0).toFixed(6);
+
+        document.getElementById('sample-count').innerText = data.total_points || 0;
 
         const clients = document.getElementById('clients');
         clients.innerHTML = Object.entries(data.clients).map(([id, info]) => `
@@ -252,104 +242,7 @@ def build_dashboard() -> str:
         workerUpdates.textContent = activeMessages.length ? activeMessages.join(' | ') : 'Waiting for task heartbeats...';
       }
 
-      async function setMatrixSize() {
-        const sizeInput = document.getElementById('matrixSize');
-        const size = parseInt(sizeInput.value);
-        if (size < 10 || size > 1000) {
-          alert('Size must be between 10 and 1000');
-          return;
-        }
-        try {
-          const r = await fetch('/admin/set_matrix_size', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({size})
-          });
-          if (!r.ok) throw new Error('Failed to set size');
-          document.getElementById('sizeStatus').textContent = `Matrix set to ${size}x${size}`;
-          const matrixViewer = document.getElementById('matrixViewer');
-          if (!matrixViewer.classList.contains('collapsed')) {
-            await loadMatrixData();
-          }
-          await refresh();
-        } catch (e) {
-          console.error(e);
-          alert('Error: ' + e.message);
-        }
-      }
-
-      async function downloadMatrix() {
-        try {
-          window.location.href = '/admin/download_matrix';
-        } catch (e) {
-          console.error(e);
-          alert('Error downloading matrix: ' + e.message);
-        }
-      }
-
-      async function downloadResults() {
-        try {
-          window.location.href = '/admin/download_results';
-        } catch (e) {
-          console.error(e);
-          alert('Error downloading results: ' + e.message);
-        }
-      }
-
-      async function loadMatrixData() {
-        try {
-          const r = await fetch('/admin/matrix_preview');
-          const data = await r.json();
-          const grid = document.getElementById('matrixContent');
-          const rows = data.matrix_preview || [];
-          grid.innerHTML = rows.map((row, i) => `<div><strong>Row ${i}:</strong> ${row.slice(0, 5).map(v => v.toFixed(3)).join(', ')} ${row.length > 5 ? '...' : ''}</div>`).join('');
-          if ((data.size || 0) > rows.length) grid.innerHTML += `<div style="color:#999;">... and ${(data.size || 0) - rows.length} more rows</div>`;
-        } catch (e) {
-          console.error(e);
-          document.getElementById('matrixContent').innerHTML = 'Error loading matrix';
-        }
-      }
-
-      async function loadResultsData() {
-        try {
-          const r = await fetch('/admin/status');
-          const data = await r.json();
-          const results = data.tasks.filter(t => t.result && t.status === 'done');
-          const resultsDiv = document.getElementById('resultsContent');
-          if (results.length === 0) {
-            resultsDiv.innerHTML = '<div style="color:#999;">No completed tasks yet</div>';
-            return;
-          }
-          resultsDiv.innerHTML = results.map(t => `<div><strong>Task #${t.id}:</strong> ${t.result.slice(0, 3).map(v => v.toFixed(3)).join(', ')} ${t.result.length > 3 ? '...' : ''}</div>`).join('');
-        } catch (e) {
-          console.error(e);
-          document.getElementById('resultsContent').innerHTML = 'Error loading results';
-        }
-      }
-
-      document.getElementById('toggleMatrixBtn').addEventListener('click', function() {
-        const viewer = document.getElementById('matrixViewer');
-        if (viewer.classList.contains('collapsed')) {
-          loadMatrixData();
-          viewer.classList.remove('collapsed');
-          this.textContent = 'Hide Matrix (A)';
-        } else {
-          viewer.classList.add('collapsed');
-          this.textContent = 'View Matrix (A)';
-        }
-      });
-
-      document.getElementById('toggleResultsBtn').addEventListener('click', function() {
-        const viewer = document.getElementById('resultsViewer');
-        if (viewer.classList.contains('collapsed')) {
-          loadResultsData();
-          viewer.classList.remove('collapsed');
-          this.textContent = 'Hide Results (b)';
-        } else {
-          viewer.classList.add('collapsed');
-          this.textContent = 'View Results (b)';
-        }
-      });
+      
 
       async function resetTasks() {
         const btn = document.getElementById('resetBtn');
@@ -366,9 +259,7 @@ def build_dashboard() -> str:
         }
       }
 
-      document.getElementById('setSizeBtn').addEventListener('click', setMatrixSize);
-      document.getElementById('downloadMatrixBtn').addEventListener('click', downloadMatrix);
-      document.getElementById('downloadResultsBtn').addEventListener('click', downloadResults);
+      
       document.getElementById('resetBtn').addEventListener('click', resetTasks);
 
       refresh();
@@ -420,13 +311,7 @@ def get_task(client_id: str) -> dict[str, Any]:
         task["requeued"] = False
         touch_client(client, "working")
 
-        # slice the matrix rows for this shard
-        start = task["start_row"]
-        end = task["end_row"]
-        matrix_chunk = MATRIX[start:end]
-
-        # return the chunk and full vector for local computation
-        return {"task_id": task["id"], "matrix_chunk": matrix_chunk, "vector_x": VECTOR_X}
+        return {"task_id": task["id"], "samples": task["samples"]}
 
     touch_client(client, "idle")
     return {"task_id": None}
@@ -468,6 +353,19 @@ def submit_result(payload: SubmitResultRequest) -> dict[str, str]:
             raise HTTPException(status_code=400, detail="Task not assigned to this client")
 
         task["status"] = "done"
+
+        global TOTAL_POINTS
+        global POINTS_INSIDE
+        global PI_ESTIMATE
+
+        inside_count = payload.result["inside"]
+        sample_count = payload.result["samples"]
+
+        POINTS_INSIDE += inside_count
+        TOTAL_POINTS += sample_count
+
+        PI_ESTIMATE = 4 * POINTS_INSIDE / TOTAL_POINTS
+
         task["result"] = payload.result
         task["lease_expires_at"] = None
         task["worker_message"] = "Completed"
@@ -485,12 +383,28 @@ def admin_status() -> dict[str, Any]:
   with lock:
     prune_disconnected_clients()
     reclaim_expired_tasks()
-    return {"clients": CLIENTS, "tasks": TASKS}
+
+    return {
+        "clients": CLIENTS,
+        "tasks": TASKS,
+        "pi_estimate": PI_ESTIMATE,
+        "total_points": TOTAL_POINTS,
+        "points_inside": POINTS_INSIDE,
+    }
 
 
 @app.post("/admin/reset")
 def admin_reset() -> dict[str, Any]:
   """Reset all tasks to pending and clear results. Keeps deterministic matrix/vector."""
+
+  global TOTAL_POINTS
+  global POINTS_INSIDE
+  global PI_ESTIMATE
+
+  TOTAL_POINTS = 0
+  POINTS_INSIDE = 0
+  PI_ESTIMATE = 0.0
+
   with lock:
     for task in TASKS:
       task["status"] = "pending"
@@ -507,71 +421,6 @@ def admin_reset() -> dict[str, Any]:
       client["last_seen"] = now()
 
   return {"status": "ok", "reset_tasks": len(TASKS)}
-
-
-@app.post("/admin/set_matrix_size")
-def set_matrix_size(payload: SetMatrixSizeRequest) -> dict[str, Any]:
-  """Set the matrix size and regenerate matrix/vector and tasks."""
-  with lock:
-    if payload.size < 10 or payload.size > 1000:
-      raise HTTPException(status_code=400, detail="Size must be between 10 and 1000")
-    generate_matrix_and_tasks(payload.size)
-    for client in CLIENTS.values():
-      client["status"] = "idle"
-  return {"status": "ok", "matrix_size": payload.size, "num_tasks": len(TASKS)}
-
-
-@app.get("/admin/matrix")
-def get_matrix() -> dict[str, Any]:
-  """Retrieve the current matrix and vector."""
-  with lock:
-    return {"matrix": MATRIX, "vector": VECTOR_X, "size": MATRIX_SIZE}
-
-
-@app.get("/admin/matrix_preview")
-def get_matrix_preview() -> dict[str, Any]:
-  """Retrieve a small preview of the current matrix for the dashboard."""
-  with lock:
-    preview_rows = MATRIX[: min(10, len(MATRIX))]
-    return {"matrix_preview": preview_rows, "size": MATRIX_SIZE}
-
-
-@app.get("/admin/download_matrix")
-def download_matrix() -> PlainTextResponse:
-  """Download the full matrix and vector as text."""
-  with lock:
-    lines: list[str] = [f"Matrix ({MATRIX_SIZE}x{MATRIX_SIZE}):"]
-    for row in MATRIX:
-      lines.append("\t".join(f"{value:.6f}" for value in row))
-    lines.append("")
-    lines.append("Vector (x):")
-    lines.append("\t".join(f"{value:.6f}" for value in VECTOR_X))
-    content = "\n".join(lines)
-  return PlainTextResponse(
-    content,
-    media_type="text/plain",
-    headers={"Content-Disposition": f'attachment; filename="matrix_{MATRIX_SIZE}x{MATRIX_SIZE}.txt"'},
-  )
-
-
-@app.get("/admin/download_results")
-def download_results() -> PlainTextResponse:
-  """Download completed task results as text."""
-  with lock:
-    lines: list[str] = ["Results (b vector):"]
-    completed = [task for task in TASKS if task["status"] == "done" and isinstance(task.get("result"), list)]
-    if not completed:
-      lines.append("No completed tasks yet")
-    else:
-      for task in completed:
-        result = task.get("result", [])
-        lines.append(f"Task #{task['id']}: " + "\t".join(f"{value:.6f}" for value in result))
-    content = "\n".join(lines)
-  return PlainTextResponse(
-    content,
-    media_type="text/plain",
-    headers={"Content-Disposition": 'attachment; filename="results.txt"'},
-  )
 
 
 if __name__ == "__main__":
