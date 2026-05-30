@@ -14,12 +14,20 @@ export default function Home() {
               <p className="text-sm text-primary-200 mt-1 font-medium">Distributed Computing Framework</p>
             </div>
             
-            <Link 
-              to="/dashboard"
-              className="btn bg-white text-primary-900 hover:bg-primary-50 active:bg-primary-100 font-semibold shadow-sm transition-all"
-            >
-              Launch Dashboard &rarr;
-            </Link>
+            <div className="flex items-center gap-4">
+              {/* <Link 
+                to="/pi-estimator"
+                className="btn border border-primary-500 text-primary-50 hover:bg-primary-800 font-medium transition-all"
+              >
+                π Estimator
+              </Link> */}
+              <Link 
+                to="/dashboard"
+                className="btn bg-white text-primary-900 hover:bg-primary-50 active:bg-primary-100 font-semibold shadow-sm transition-all"
+              >
+                Launch Dashboard &rarr;
+              </Link>
+            </div>
           </div>
         </div>
       </header>

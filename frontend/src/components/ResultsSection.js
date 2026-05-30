@@ -52,8 +52,11 @@ function ResultsSection({ tasks }) {
                       <strong>Task #{task.id}</strong>
                     </div>
                     <code className="result-data">
-                      [{task.result.slice(0, 5).map(v => v.toFixed(4)).join(', ')}
-                      {task.result.length > 5 ? ', ...' : ''}]
+                      {Array.isArray(task.result) 
+                        ? `[${task.result.slice(0, 5).map(v => typeof v === 'number' ? v.toFixed(4) : v).join(', ')}${task.result.length > 5 ? ', ...' : ''}]`
+                        : typeof task.result === 'object'
+                          ? JSON.stringify(task.result)
+                          : String(task.result)}
                     </code>
                   </div>
                 ))}

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import axios from 'axios';
 import Home from './pages/Home';
 import DashboardPage from './pages/DashboardPage';
+import PiEstimatorPage from './pages/PiEstimatorPage';
 import './styles/index.css';
 
 function App() {
@@ -46,6 +47,9 @@ function App() {
         total_tasks: tasks.length,
         clients: clientsArray,
         tasks,
+        pi_estimate: response.data.pi_estimate,
+        total_points: response.data.total_points,
+        points_inside: response.data.points_inside,
       };
       setData(normalizedData);
       setError(null);
@@ -92,6 +96,19 @@ function App() {
           path="/dashboard" 
           element={
             <DashboardPage 
+              data={data} 
+              loading={loading}
+              error={error}
+              lastUpdate={lastUpdate}
+              fetchStatus={fetchStatus}
+              handleReset={handleReset}
+            />
+          } 
+        />
+        <Route 
+          path="/pi-estimator" 
+          element={
+            <PiEstimatorPage 
               data={data} 
               loading={loading}
               error={error}
