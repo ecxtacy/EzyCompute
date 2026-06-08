@@ -5,14 +5,63 @@ CLI script to launch N worker processes for testing the distributed computing fr
 Usage:
     python launch_workers.py 5              # Launch 5 workers
     python launch_workers.py 10 --delay 0.5 # Launch 10 workers with 0.5s delay between starts
+    python launch_workers.py 5 --kill-one-after 5  # Kill one worker after 5s to test fault tolerance
     python launch_workers.py --help          # Show help
 """
 
 import argparse
+import random
 import subprocess
 import sys
 import time
+from threading import Thread
 from pathlib import Path
+
+
+def kill_one_worker_after_delay(processes, delay: float, worker_index: int | None = None) -> None:
+    """Kill a single worker after a delay to simulate a sudden crash."""
+
+    def _killer() -> None:
+        time.sleep(delay)
+
+        alive_processes = [
+            (index, proc)
+            for index, proc in enumerate(processes)
+            if proc.poll() is None
+        ]
+
+        if not alive_processes:
+            print("⚠️  No running workers were available to kill.", file=sys.stderr)
+            return
+
+        if worker_index is not None:
+            target_index = worker_index - 1
+            if target_index < 0 or target_index >= len(processes):
+                print(
+                    f"⚠️  Worker index {worker_index} is out of range; skipping forced kill.",
+                    file=sys.stderr,
+                )
+                return
+
+            proc = processes[target_index]
+            if proc.poll() is not None:
+                print(
+                    f"⚠️  Worker {worker_index} already exited; skipping forced kill.",
+                    file=sys.stderr,
+                )
+                return
+
+            index = target_index
+        else:
+            index, proc = random.choice(alive_processes)
+
+        print(
+            f"💥 Simulating sudden stop: killing worker {index + 1} (PID: {proc.pid})",
+            file=sys.stderr,
+        )
+        proc.kill()
+
+    Thread(target=_killer, daemon=True).start()
 
 
 def main():
@@ -44,6 +93,20 @@ Examples:
         "-v",
         action="store_true",
         help="Print worker startup messages",
+    )
+    parser.add_argument(
+        "--kill-one-after",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Kill one worker after the given delay to simulate a sudden crash",
+    )
+    parser.add_argument(
+        "--kill-worker",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Kill the Nth worker (1-based) instead of choosing one at random",
     )
 
     args = parser.parse_args()
@@ -89,6 +152,18 @@ Examples:
         print(f"✅ All {args.num_workers} worker(s) launched successfully!")
         print(f"\n📊 Running workers (PIDs): {', '.join(str(p.pid) for p in processes)}")
         print("\n💡 Press Ctrl+C to stop all workers\n")
+
+        if args.kill_one_after is not None:
+            kill_one_worker_after_delay(
+                processes,
+                args.kill_one_after,
+                worker_index=args.kill_worker,
+            )
+            target = f"worker {args.kill_worker}" if args.kill_worker is not None else "one random worker"
+            print(
+                f"⚠️  Scheduled sudden-stop test: {target} will be killed after {args.kill_one_after}s\n",
+                file=sys.stderr,
+            )
 
         # Keep processes running and monitor for exits
         while True:
