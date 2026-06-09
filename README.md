@@ -169,7 +169,7 @@ Features:
 - Task grid with color-coded status (gray=pending, yellow=working, green=done)
 - Task state indicators showing if requeued, assigned client, heartbeat time, worker messages
 - Worker updates feed showing the last 3 task messages
-- Live refresh every 1 second
+- Live refresh every 1 second to update the dashboard
 
 ### Endpoints
 - `GET /`: Dashboard UI
